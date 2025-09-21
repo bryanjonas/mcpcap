@@ -6,6 +6,8 @@ and server initialization.
 
 import argparse
 import sys
+import os
+import json
 
 from .core import Config, MCPServer
 
@@ -18,10 +20,6 @@ def main():
 
     Returns:
         int: Exit code (0 for success, 1 for error)
-
-    Raises:
-        KeyboardInterrupt: If the user interrupts the server
-        Exception: For any unexpected errors during server operation
     """
     parser = argparse.ArgumentParser(description="mcpcap MCP Server")
 
@@ -37,10 +35,16 @@ def main():
         help="Maximum number of packets to analyze per file (default: unlimited)",
     )
 
-    parser.add_argument(
-    "--dir",
-    help="Directory containing PCAP files to analyze",
-    type=str,
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--file",
+        help="Single PCAP file to analyze",
+        type=str,
+    )
+    group.add_argument(
+        "--dir",
+        help="Directory containing PCAP files to analyze",
+        type=str,
     )
 
     args = parser.parse_args()
@@ -60,8 +64,38 @@ def main():
             pcap_dir=args.dir,
         )
 
-        # Create and start MCP server
+        # Create server instance
         server = MCPServer(config)
+
+        # --- Batch mode: single file ---
+        if args.file:
+            if not os.path.exists(args.file):
+                print(f"Error: PCAP file not found: {args.file}", file=sys.stderr)
+                return 1
+
+            results = {os.path.basename(args.file): {}}
+            for name, module in server.modules.items():
+                results[os.path.basename(args.file)][name] = module.analyze_packets(args.file)
+
+            print(json.dumps(results, indent=2))
+            return 0
+
+        # --- Batch mode: directory ---
+        if args.dir:
+            if not os.path.isdir(args.dir):
+                print(f"Error: Directory not found: {args.dir}", file=sys.stderr)
+                return 1
+
+            results = {}
+            for pcap in server._get_pcap_files(args.dir):
+                results[os.path.basename(pcap)] = {}
+                for name, module in server.modules.items():
+                    results[os.path.basename(pcap)][name] = module.analyze_packets(pcap)
+
+            print(json.dumps(results, indent=2))
+            return 0
+
+        # --- Default: run as MCP server ---
         server.run()
         return 0
 
@@ -69,7 +103,7 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
-        print("\\nServer stopped by user", file=sys.stderr)
+        print("\nServer stopped by user", file=sys.stderr)
         return 0
     except Exception as e:
         print(f"Unexpected error: {e}", file=sys.stderr)
