@@ -49,10 +49,12 @@ class MCPServer:
         ]
     
     def _make_tool(self, module, tool_name: str):
-        """Create a wrapper tool for a module that handles file or directory input."""
-
         @self.mcp.tool(name=tool_name)
-        def tool_fn(pcap_path: str = None, pcap_dir: str = None, module=module):
+        def tool_fn(*, pcap_path: str = None, pcap_dir: str = None, **kwargs):
+            # Fallback: some clients may send args as kwargs
+            pcap_path = pcap_path or kwargs.get("pcap_path")
+            pcap_dir = pcap_dir or kwargs.get("pcap_dir")
+
             if pcap_dir:
                 results = {}
                 for pcap in self._get_pcap_files(pcap_dir):
@@ -63,7 +65,6 @@ class MCPServer:
             else:
                 return {"error": "Must supply either pcap_path or pcap_dir"}
 
-        return tool_fn
     
     def _register_tools(self) -> None:
         """Register all available tools with the MCP server."""
