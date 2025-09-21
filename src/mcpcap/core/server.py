@@ -7,7 +7,7 @@ from ..modules.dhcp import DHCPModule
 from ..modules.dns import DNSModule
 from ..modules.icmp import ICMPModule
 from .config import Config
-
+import os
 
 class MCPServer:
     """MCP server for PCAP analysis."""
@@ -40,19 +40,42 @@ class MCPServer:
         for module in self.modules.values():
             module.setup_prompts(self.mcp)
 
+    def _get_pcap_files(self, pcap_dir: str) -> list[str]:
+        """Return all PCAP files in a directory."""
+        return [
+            os.path.join(pcap_dir, f)
+            for f in os.listdir(pcap_dir)
+            if f.lower().endswith((".pcap", ".pcapng", ".cap"))
+        ]
+    
+    def _make_tool(self, module, tool_name: str):
+        """Create a wrapper tool for a module that handles file or directory input."""
+
+        @self.mcp.tool(name=tool_name)
+        def tool_fn(pcap_path: str = None, pcap_dir: str = None, module=module):
+            if pcap_dir:
+                results = {}
+                for pcap in self._get_pcap_files(pcap_dir):
+                    results[pcap] = module.analyze_packets(pcap)
+                return results
+            elif pcap_path:
+                return module.analyze_packets(pcap_path)
+            else:
+                return {"error": "Must supply either pcap_path or pcap_dir"}
+
+        return tool_fn
+    
     def _register_tools(self) -> None:
         """Register all available tools with the MCP server."""
-        # Register tools for each loaded module
-        for module_name, module in self.modules.items():
-            if module_name == "dns":
-                self.mcp.tool(module.analyze_dns_packets)
-            elif module_name == "dhcp":
-                self.mcp.tool(module.analyze_dhcp_packets)
-            elif module_name == "icmp":
-                self.mcp.tool(module.analyze_icmp_packets)
-            elif module_name == "capinfos":
-                self.mcp.tool(module.analyze_capinfos)
-
+        if "dns" in self.modules:
+            self._make_tool(self.modules["dns"], "analyze_dns_packets")
+        if "dhcp" in self.modules:
+            self._make_tool(self.modules["dhcp"], "analyze_dhcp_packets")
+        if "icmp" in self.modules:
+            self._make_tool(self.modules["icmp"], "analyze_icmp_packets")
+        if "capinfos" in self.modules:
+            self._make_tool(self.modules["capinfos"], "analyze_capinfos")
+            
     def run(self) -> None:
         """Start the MCP server."""
 

@@ -37,6 +37,12 @@ def main():
         help="Maximum number of packets to analyze per file (default: unlimited)",
     )
 
+    parser.add_argument(
+    "--dir",
+    help="Directory containing PCAP files to analyze",
+    type=str,
+    )
+
     args = parser.parse_args()
 
     try:
@@ -51,6 +57,7 @@ def main():
         config = Config(
             modules=modules,
             max_packets=args.max_packets,
+            pcap_dir=args.dir,
         )
 
         # Create and start MCP server

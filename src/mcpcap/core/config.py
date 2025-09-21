@@ -8,16 +8,18 @@ class Config:
         self,
         modules: list[str] | None = None,
         max_packets: int | None = None,
+        pcap_dir: str | None = None,
     ):
         """Initialize configuration.
 
         Args:
             modules: List of modules to load
             max_packets: Maximum number of packets to analyze per file
+            pcap_dir: Directory containing PCAP files to analyze
         """
         self.modules = modules or ["dns", "dhcp", "icmp"]
         self.max_packets = max_packets
-
+        self.pcap_dir = pcap_dir
         self._validate_configuration()
 
     def _validate_configuration(self) -> None:
